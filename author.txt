@@ -1,0 +1,8 @@
+Christian is Genode developer since 2006 and co-founder of the
+company behind the project.  Working every day on an open-source
+project that will change the world (bit by bit) is the job of his
+dreams.
+
+*GitHub* [https://github.com/chelmuth - chelmuth]
+
+*Company* [https://www.genode-labs.com - Genode Labs]
