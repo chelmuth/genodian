@@ -1,0 +1,80 @@
+
+             How to prepare an x86 notebook for debugging
+
+For my first article on Genodians, I recorded my preparation steps to
+enable a recent notebook model for developments including the
+preservation of the OEM Windows installation, remote power control,
+and serial-over-lan logging.
+
+It goes without saying that the first run of the device had to be with
+[https://genode.org/download/sculpt - Sculpt]. So in preparation, I
+entered the BIOS setup to enable booting from USB mass storage and to
+disable secure boot. While playing with the booted Sculpt I decided
+against installing on the NVMe right away but for partitioning the
+storage first. Therefore, I booted into Windows to shrink the system
+partition and preserve the OEM installation for potential future use,
+e.g., firmware updates via Windows-only tools. This is pretty easy via
+the "Disk Management" (diskmgmt.msc) available by right-click on the
+start-menu logo. In the tool, I selected the NTFS partition and chose
+"Shrink Volume". This freed plenty of space for the GENODE partition
+and other volumes. After reboot I deployed the first packages in
+Sculpt in the blink of an eye via ethernet connection and tested VT-x
+with the _firefox@seoul_ launcher.
+
+Then, I had to address the serious part of making the notebook ready
+for daily development and debugging. For test notebooks, we usually
+opt for vPro variants with full-fledged Intel ME because this enables
+remote power control as well as a virtual UART device as
+serial-over-lan (SOL) service (not to mention the ability of
+occasional screenshots via KVM). I rebooted and entered the Intel ME
+menu for the following configurations.
+
+* AMT password setup
+* Enable SOL (IDER and KVM could be disabled for now)
+* TCP/IP settings
+  * Disable DHCP to set a dedicated IP address for AMT in contrast to
+    the IP address the operating system will get from DHCP
+  * IPV4 Address 10.0.0.236
+  * Subnet Mask Address 255.255.255.0
+
+After that, remote power control was working and Intel ME
+was accessible via [http://10.0.0.236:16992]. The SOL did not work without
+further preparation, so I left the test notebook connected to the LAN
+and switched to my Ubuntu development VM for the following steps.
+
+* Installation of required tools
+  !apt install wsmancli amtterm
+* Request current SOL listener state
+  !wsman get http://intel.com/wbem/wscim/1/amt-schema/1/AMT_RedirectionService \
+  !    -h 10.0.0.236 -P 16992 -u admin -p 'PASSWORD'
+  !...
+  !<g:ListenerEnabled>false</g:ListenerEnabled>
+  !...
+* Enable SOL listener
+  !wsman put http://intel.com/wbem/wscim/1/amt-schema/1/AMT_RedirectionService \
+  !    -h 10.0.0.236 -P 16992 -u admin -p 'PASSWORD' -k ListenerEnabled=true
+* Test listener
+  !amtterm -u admin -p 'PASSWORD' 10.0.0.236
+  !amtterm: NONE -> CONNECT (connection to host)
+  !...
+  !CTRL-] to exit
+
+With the connection acknowledgement in the last step the notebook was
+ready for remote control and logging, which I enabled in my Genode
+build directory's _etc/build.conf_.
+
+* Run tool configuration for logging
+  !RUN_OPT += --include log/amt
+  !RUN_OPT +=   --log-amt-host 10.0.0.236
+  !RUN_OPT +=   --log-amt-password PASSWORD
+* Configuration for power on / reset
+  !RUN_OPT += --amt-tool wsman
+  !RUN_OPT += --include power_on/amt
+  !RUN_OPT +=   --power-on-amt-host 10.0.0.236
+  !RUN_OPT +=   --power-on-amt-password PASSWORD
+* Test machine needs more time to finish boot
+  !RUN_OPT += --power-on-amt-timeout 20
+
+The only missing piece for convenient test-debug sessions is now the
+boot of the test scenario via network but that is a completely
+different topic and beyond the scope of my first post.
