@@ -1,0 +1,201 @@
+
+           Getting started with Genode network developments
+
+Yesterday afternoon I had to take care of duties that kept me away
+from the office, so motivated by a
+[https://lists.genode.org/pipermail/users/2019-January/006581.html - question]
+on the mailing list last week, I decided to write down some handy tips
+related to Genode developments and networking.
+
+For many tasks in OS development like driver and kernel debugging a
+dedicated test machine is essential, at least at a certain stage of
+developments. But for the development of hardware-agnostic components,
+for example network protocols or applications, the Genode/Linux
+platform _base-linux_ perfectly fits most purposes. Keeping the
+code-compile-test cycle on one PC rewards the developer with a quite
+efficient workflow that takes boot times completely out of the loop
+and also allows the use of powerful tools like GDB or even
+[http://oprofile.sourceforge.net - OProfile].
+Therefore, base-linux comes with a _linux_nic_drv_ that utilizes Linux
+TUN/TAP devices to participate in a virtual ethernet. This approach
+may sound familiar as it can also be applied with Qemu.
+
+Static IP configuration
+-----------------------
+
+An init start node for linux_nic_drv looks is follows.
+
+!<start name="linux_nic_drv" caps="130" ld="no">
+!  <resource name="RAM" quantum="20M"/>
+!  <provides><service name="Nic"/></provides>
+!  <config>
+!    <nic mac="02:00:00:00:00:01" tap="tap0"/> <!-- optional -->
+!  </config>
+!</start>
+
+As you can see the used MAC address and the TAP device name are
+configurable in the '<config>' sub-node. Side node: linux_nic_drv is a
+hybrid Genode component, which means it is part of the Genode system
+running on Linux but also links to host libraries to access Linux
+resources, in this case the TAP device. Therefore, the component is
+required to be loaded by the Linux loader, e.g.
+_/lib/x86_64-linux-gnu/ld-2.23.so_, which is expressed by the
+'ld="no"' start-node attribute.
+
+The ready to test run script _netperf_lwip.run_ can be found in
+_repos/ports/run_. On base-linux, this scenario configures the
+[https://hewlettpackard.github.io/netperf/ - Netperf] _netserver_ to
+use the static IP configuration '10.0.2.55/24' and linux_nic_drv on
+'tap0'. So before trying it out you have to setup the TAP device as
+follows.
+
+!dev=tap0
+!user=developer
+!
+!ip tuntap add dev $dev mode tap user $user
+!ip address flush dev $dev
+!ip address add 10.0.2.1/24 brd 10.0.2.255 dev $dev
+!ip link set dev $dev addr 02:00:00:ca:fe:01
+!ip link set dev $dev up
+
+I usually add the statements above to _/etc/rc.local_ of all my Ubuntu
+development hosts during installation and immediately forget about
+them. Now, you may try the scenario in an _x86_64_ build directory.
+
+!make run/netperf_lwip KERNEL=linux
+!...
+![init -> nic_drv] no config provided, using tap0
+![init -> netserver_genode] lwIP Nic interface up address=10.0.2.55...
+!...
+!Run script execution successful.
+
+Let's make it dynamic
+---------------------
+
+The first step to a real dedicated development network is to replace
+static IP configuration by DHCP. This is by far no sourcery and just
+needs a small shell script and a configuration file for the dedicated
+DHCP server, in my case the ISC DHCP server, which can be installed on
+Ubuntu like follows.
+
+!sudo apt install isc-dhcp-server
+!sudo systemctl disable isc-dhcp-server
+
+I disabled the system-wide configuration of the server because it can
+be started on demand.
+
+!# tap0-dhcpd.sh
+!
+!netdev=tap0
+!dhcpd_conf=$netdev-dhcpd.conf
+!dhcpd_conf_file=$(readlink -e "$dhcpd_conf")
+!dhcpd_pid_file="/tmp/$netdev-dhcpd.pid"
+!dhcpd_lease_file="/tmp/$netdev-dhcpd.lease"
+!
+!echo -n "" > $dhcpd_lease_file
+!sudo chown dhcpd:dhcpd $dhcpd_lease_file
+!
+!sudo dhcpd -d -f -cf $dhcpd_conf_file \
+!           -pf $dhcpd_pid_file -lf $dhcpd_lease_file "$netdev"
+
+The following configuration file provides a dynamic pool for virtual,
+locally-administered MAC addresses beginning with '02:' and explicit
+MAC-address-based host entries.
+
+!# tap0-dhcpd.conf
+!
+!ddns-update-style none;
+!authoritative;
+!
+!class "virtual" { match if (substring(hardware, 1,1) = 02); }
+!
+!subnet 10.0.2.0 netmask 255.255.255.0 {
+!  option broadcast-address 10.0.2.255;
+!
+!  pool {
+!    max-lease-time 120;
+!    range 10.0.2.128 10.0.2.199;
+!    allow members of "virtual";
+!  }
+!
+!  host test-host {
+!    hardware ethernet 12:00:00:00:00:01;
+!    fixed-address     10.0.2.99;
+!  }
+!}
+
+For testing the configuration, we enter the directory
+_<build-dir>/var/run/netperf_lwip/genode_ and open the _config_ file
+in our editor. First we apply the following change (remove lines
+starting with *-* and add lines starting with *+*).
+
+!-<lwip  ip_addr="10.0.2.55" netmask="255.255.255.0" gateway="10.0.2.1"/>
+!+<lwip dhcp="yes"/>
+
+Now, run tap0-dhcp.sh in a separate terminal and restart the scenario
+(without the actual netperf test).
+
+!./core
+!...
+![init -> netserver_genode] lwIP Nic interface up address=10.0.2.128...
+
+Great, netserver requested it's IP configuration via DHCP and was
+offered a lease from the dynamic pool, which can also be seen in the
+dhcpd terminal.
+
+!DHCPDISCOVER from 02:00:00:00:00:01 via tap0
+!DHCPOFFER on 10.0.2.128 to 02:00:00:00:00:01 via tap0
+!DHCPREQUEST for 10.0.2.128 (10.0.2.1) from 02:00:00:00:00:01 via tap0
+!DHCPACK on 10.0.2.128 to 02:00:00:00:00:01 via tap0
+
+Not convinced? Okay let's ping the new host for testing.
+
+!> ping -c 1 10.0.2.128
+!PING 10.0.2.128 (10.0.2.128) 56(84) bytes of data.
+!64 bytes from 10.0.2.128: icmp_seq=1 ttl=255 time=1.75 ms
+!
+!--- 10.0.2.128 ping statistics ---
+!1 packets transmitted, 1 received, 0% packet loss, time 0ms
+!rtt min/avg/max/mdev = 1.750/1.750/1.750/0.000 ms
+
+Testing the dedicated configuration is equally simple by adding the
+following line to the nic_drv start node in the config file and
+restarting the scenario.
+
+!<config> <nic mac="12:00:00:00:00:01"/> </config>
+
+!./core
+!...
+![init -> netserver_genode] lwIP Nic interface up address=10.0.2.99...
+
+!DHCPDISCOVER from 12:00:00:00:00:01 via tap0
+!DHCPOFFER on 10.0.2.99 to 12:00:00:00:00:01 via tap0
+!DHCPREQUEST for 10.0.2.99 (10.0.2.1) from 12:00:00:00:00:01 via tap0
+!DHCPACK on 10.0.2.99 to 12:00:00:00:00:01 via tap0
+
+!> ping -c 1 10.0.2.99
+!PING 10.0.2.99 (10.0.2.99) 56(84) bytes of data.
+!64 bytes from 10.0.2.99: icmp_seq=1 ttl=255 time=1.78 ms
+!
+!--- 10.0.2.99 ping statistics ---
+!1 packets transmitted, 1 received, 0% packet loss, time 0ms
+!rtt min/avg/max/mdev = 1.786/1.786/1.786/0.000 ms
+
+Beyond toying
+-------------
+
+At some stage of network development it is time to move the scenario
+to real hardware nodes in a dedicated development network. The simple
+framework above is a good starting point and already enables to
+configure nodes based on their MAC addresses and also supports virtual
+ethernet devices like those behind the
+[https://github.com/genodelabs/genode/tree/18.11/repos/os/src/server/nic_bridge - nic_bridge]
+component. You only have to adapt the static IP configuration for the
+NIC connected to the development network, set the 'netdev' in the DHCP
+server script and the IP pools/entries in the DHCP server config
+accordingly.
+
+In the next post of this series I'll address the development-network
+configuration including DHCP, network booting, and controlling
+multiple test machines in parallel.
+
