@@ -46,15 +46,17 @@ Installation of required tools
 !apt install wsmancli amtterm
 
 Request current SOL listener state
-!wsman get http://intel.com/wbem/wscim/1/amt-schema/1/AMT_RedirectionService \
-!    -h 10.0.0.236 -P 16992 -u admin -p 'PASSWORD'
+!wsman get \
+!  http://intel.com/wbem/wscim/1/amt-schema/1/AMT_RedirectionService \
+!  -h 10.0.0.236 -P 16992 -u admin -p 'PASSWORD'
 !...
 !<g:ListenerEnabled>false</g:ListenerEnabled>
 !...
 
 Enable SOL listener
-!wsman put http://intel.com/wbem/wscim/1/amt-schema/1/AMT_RedirectionService \
-!    -h 10.0.0.236 -P 16992 -u admin -p 'PASSWORD' -k ListenerEnabled=true
+!wsman put \
+!  http://intel.com/wbem/wscim/1/amt-schema/1/AMT_RedirectionService \
+!  -h 10.0.0.236 -P 16992 -u admin -p 'PASSWORD' -k ListenerEnabled=true
 
 Test listener
 !amtterm -u admin -p 'PASSWORD' 10.0.0.236
