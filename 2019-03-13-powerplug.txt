@@ -1,0 +1,69 @@
+
+          Remote-control your test target via power scripts
+
+
+In this post, I take Valerius's excellent
+[http:/valerius/2019-03-12-remote-booting-of-x86-machines-with-pxe-and-intel-amt - article]
+about remote booting and Intel AMT as an excuse for a detour from
+network-development setups into remote power control with Genode's run
+tool.
+
+When developing system-level or kernel-level software, frequent reboots
+of the target hardware can become really annoying if they have to be
+done manually. The situation gets even more inconvenient if the
+hardware has to stay in the test lab (e.g., for nightly automatic
+testing) that's located one floor away from your regular office. This
+calls for a solution we already addressed in our run tool by
+'power_on/power_off'
+[https://github.com/genodelabs/genode/tree/master/tool/run/power_on - scripts].
+
+These scripts are already used in the generated _etc/build.conf_ of
+your build directory to steer the execution of Qemu.
+
+!./tool/create_builddir pbxa9  BUILD_DIR=/tmp/scratch
+!grep ^QEMU_RUN_OPT /tmp/scratch/etc/build.conf
+!
+!QEMU_RUN_OPT := --include power_on/qemu  --include log/qemu
+
+The scripts are required to implement the 'run_power_on' resp.
+'run_power_off' Tcl procs only and provide configuration parameters
+specific to the power controller used (e.g., IP address of a LAN PDU).
+The following configuration depicts how a NETIO4 PDU from Koukaam
+controls our imx53_qsb test-lab board and can be basically appended to
+_etc/build.conf_ after
+
+!./tool/create_builddir imx53_qsb BUILD_DIR=/tmp/scratch
+
+!RUN_OPT += --include power_on/netio
+!RUN_OPT +=   --power-on-netio-host 10.0.10.5
+!RUN_OPT +=   --power-on-netio-port 3
+!RUN_OPT +=   --power-on-netio-user admin
+!RUN_OPT +=   --power-on-netio-password PASSWORD
+!RUN_OPT += --include power_off/netio
+!RUN_OPT +=   --power-off-netio-host 10.0.10.5
+!RUN_OPT +=   --power-off-netio-port 3
+!RUN_OPT +=   --power-off-netio-user admin
+!RUN_OPT +=   --power-off-netio-password PASSWORD
+
+The PDU is connected to LAN at IP '10.0.10.5' and the power adapter of
+the imx53 board is plugged into socket 3. The run tool now executes
+'run_power_on' after the boot image was prepared and 'run_power_off'
+after the test terminates or is manually interrupted.
+
+The Genode repository contains power scripts for the following PDU
+devices.
+
+* [https://github.com/genodelabs/genode/blob/master/tool/run/power_on/netio - NETIO4/NETIO230 by Koukaam]
+* [https://github.com/genodelabs/genode/blob/master/tool/run/power_on/energenie - EnerGenie by Gembird]
+* [https://github.com/genodelabs/genode/blob/master/tool/run/power_on/allnet - ALLNET MSR (e.g., ALL4176)]
+
+I also discovered a simple start/stop script for
+[https://git.codelabs.ch/?p=muen.git;a=blob;f=deploy/start_shutdown_epc.sh;hb=refs/heads/devel - GUDE Expert Power Control (EPC)]
+by Reto Buerki of the Muen SK project, which could easily be adapted
+to the run script scheme.
+
+Finally, I'd like to refer Genodians planning to post images with
+their articles to have a look into [https://pngquant.org/ - pngquant],
+a tool which does an excellent job reducing the size of images and
+thereby limits the data usage in the Genodians.org appliance and
+decreases site-loading times.
