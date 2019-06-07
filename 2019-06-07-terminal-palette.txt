@@ -1,0 +1,59 @@
+
+          Modern look for the graphical terminal
+
+Some weeks ago, I was finally done with the wishy-washy
+[https://en.wikipedia.org/wiki/Solarized_(color_scheme)#Gallery - Solarized Dark]
+color theme in my terminals and searched for a palette rich of
+contrast but still pleasing to the eyes. The new color palette inspired me
+to a small coding project for our graphical terminal over the
+Hack'n'Hike weekend.
+
+I went for the
+[http://chriskempson.com/projects/base16/ - Base16 Classic Dark]
+color palette by Chris Kempson.
+
+[image vim_syntax] ViM syntax highlighting with the old (left) and the
+  new palette (right)
+
+Before adding my color values to the terminal I had to dive into the existing
+[https://github.com/genodelabs/genode/tree/master/repos/gems/src/server/terminal - implementation].
+The Genode terminal component provides the Terminal
+service and uses a Nitpicker GUI session for screen representation. It uses the
+[https://github.com/genodelabs/genode/tree/master/repos/gems/src/lib/vfs/ttf - vfs_ttf]
+VFS plugin for font rendering and the color handling is encapsulated
+in 'class Terminal::Color_palette'. Any palette has 16 colors with
+index 0-7 for normal representation and index 8-15 for bright/bold
+colors. The existing implementation also had an undocumented feature to
+tweak colors by configuration for the Sculpt Leitzentrale.
+
+I reworked the config mechanism and made it an explicit documented
+feature, which is also used on component instantiation to setup the
+default palette to Base16 Classic Dark. While coding I also discovered
+that the handling of foreground and background color values did not
+fit the new palette nicely and revised the approach. Now, requests for
+foreground color indices to the palette return the original color
+value while background colors get reduced intensity by calculating 75 %
+values of the RGB color channels. Last but not least, I replaced the
+existing implementation of the inverse/reverse attribute by an
+approach that just swaps the color indices for foreground and
+background before requesting colors from the palette.
+
+[image vim_hi] The new palette ensures readability of all ViM
+  highlighting patterns
+
+For experimentation with the new terminal palette, you may adapt the
+default colors in Sculpt's Leitzentrale by copying
+_/config/managed/fonts_ to _/config/fonts_ and editing the palette
+entry at the bottom like follows.
+
+!<config>
+!  ...
+!  <palette>
+!    <color index="0" value="#000000"/> <!-- black is real black -->
+!    <color index="8" value="#105010"/> <!-- bright black stands out a bit green -->
+!  </palette>
+!</config>
+
+The patch already entered out staging branch and will be available in
+master after the current QA cycle.
+
