@@ -87,8 +87,7 @@ paired with the approach of one dedicated I/O memory session per page
 and resulted in a resource demand of about 300 capabilities for
 ACPI-table access only. This plus the base demand of caps for the
 component bursted the limit of 350 caps for _acpi_drv_ in Sculpt and
-called for a proper [https://github.com/genodelabs/genode/issues/3495
-- fix].
+called for a proper [https://github.com/genodelabs/genode/issues/3495 - fix].
 
 [image elitebook_2]
 
