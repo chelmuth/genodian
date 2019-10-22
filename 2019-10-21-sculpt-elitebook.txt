@@ -1,0 +1,132 @@
+
+                   Sculpt OS on HP EliteBook 840 G5
+
+A few weeks ago, I got hold of a brand-new HP EliteBook and was eager
+to find out how Sculpt OS may do on it. The specs promised a smooth
+ride but as always I had to face some hidden obstacles.
+
+After unpacking, the 840 made a solid first impression with the
+comfortable keyboard and quite usable trackpoint. Also, the notebook
+is quite capable with a quad-core Intel i5-8350U CPU, 16 GiB RAM,
+NVMe, and Intel-based peripherals for WiFi, Ethernet, and graphics.
+Especially the peripherals promised maximum compatibility with our
+driver arsenal.
+
+[image elitebook_1]
+
+First boot
+----------
+
+Unfortunately, the first boot of a recent Sculpt OS USB flash drive
+just hanged after GRUB showing the GENODE boot logo. So, it was time
+to get my hands dirty and debug the boot process. From a debuggers
+point of view, the used i5-8350U CPU luckily comes with Intel vPRO
+support, which means
+[https://genodians.org/chelmuth/2019-01-16-test-machine - enabling AMT Serial-Over-LAN]
+is just a matter of some configuration tweaks. Additionally, I adapted
+the Sculpt configuration to use the core LOG service,
+which is reflects all messages on the first UART - in our case (and
+thanks to [https://github.com/chelmuth/genode/tree/19.08/tool/boot - bender]) AMT SOL.
+
+!--- a/repos/gems/run/sculpt.run
+!+++ b/repos/gems/run/sculpt.run
+!@@ -220,7 +220,7 @@ install_config {
+! 		<route>
+! 			<service name="ROM" label="log"> <parent label="kernel_log"/> </service>
+! 			<service name="Timer"> <child name="timer"/> </service>
+!-			<service name="LOG" label="log"> <child name="log" label="kernel"/> </service>
+!+			<service name="LOG" label="log"> <parent/> </service>
+! 			<any-service> <parent/> </any-service>
+! 		</route>
+! 	</start>
+!@@ -239,7 +239,7 @@ install_config {
+! 		<resource name="RAM" quantum="96M" constrain_phys="yes"/>
+! 		<binary name="init"/>
+! 		<route>
+!-			<service name="LOG"> <child name="log"/> </service>
+!+			<service name="LOG"> <parent/> </service>
+! 			<service name="ROM" label="config">
+! 				<child name="config_fs_rom" label="drivers"/> </service>
+! 			<service name="ROM" label_last="capslock"> <child name="report_rom"/> </service>
+!@@ -391,7 +391,7 @@ install_config {
+! 		<affinity xpos="1" width="1"/> <!-- decouple leitzentrale from boot CPU -->
+! 		<provides> <service name="Nitpicker"/> </provides>
+! 		<route>
+!-			<service name="LOG"> <child name="log"/> </service>
+!+			<service name="LOG"> <parent/> </service>
+! 			<service name="ROM" label="config">
+! 				<child name="leitzentrale_config"/> </service>
+! 			<service name="ROM" label_prefix="report -> ">
+!@@ -468,7 +468,7 @@ install_config {
+! 				<child name="report_rom"/> </service>
+! 			<service name="Report"> <child name="fs_report"/> </service>
+! 			<service name="LOG" label="unlogged"> <parent/> </service>
+!-			<service name="LOG"> <child name="log"/> </service>
+!+			<service name="LOG"> <parent/> </service>
+! 			<service name="Rtc"> <child name="rtc_drv"/> </service>
+! 			<any-service> <parent/> </any-service>
+! 		</route>
+
+With these measures in place, the log of the next boot revealed that
+our _acpi_drv_ did not play well with the notebook's ACPI
+configuration. After some further debugging with less complex Genode
+scenarios (e.g., _run/pci_), it became clear that the vast amount of
+ACPI tables comprising 108 memory pages was the reason for the boot
+hang, which manifested in the boot log by the following message.
+
+![init] child "acpi_drv" requests resources: cap_quota=3
+
+So, _acpi_drv_ lacked capabilities and that could easily be fixed
+by increasing the quota configuration. But with a quota of 350 caps
+already, I wanted to identify the cause of the resource consumption
+instead of an easy fix and, in the end, it was twofold:
+First, our ACPI-table parser mapped the required memory pages
+one-by-one on demand in a dedicated region of virtual memory. This was
+paired with the approach of one dedicated I/O memory session per page
+(with [https://github.com/genodelabs/genode/blob/19.08/repos/base/include/io_mem_session/io_mem_session.h#L44 - 3 caps per session])
+and resulted in a resource demand of about 300 capabilities for
+ACPI-table access only. This plus the base demand of caps for the
+component bursted the limit of 350 caps for _acpi_drv_ in Sculpt and
+called for a proper [https://github.com/genodelabs/genode/issues/3495
+- fix].
+
+[image elitebook_2]
+
+Second boot (fingers crossed)
+-----------------------------
+
+After solving the boot hang I was sure to leave the dirt road and
+return to the smooth ride, but things didn't go as expected. The
+Sculpt scenario improved by my ACPI fix greeted me with a colorful
+distorted screen in place of the Leitzentrale. Once again, I had
+to analyze the log output what may have gone wrong and was afraid to
+find an incompatibility of our _intel_fb_ port with the Intel UHD
+Graphics 620 used in the notebook.
+
+It took me some time to spot the issue, which was the (not so) tiny
+difference between '0xff2000000' and '0x1ff2000000' for the first PCI
+MMIO region's base address of the graphics card. (I have to admit that
+an intermediate boot of an Ubuntu live system saved my day.) With this
+info I started to learn about
+[https://en.wikipedia.org/wiki/PCI_configuration_space#Bus_enumeration - PCI 64-bit BARs]
+and extended the x86 _platform_drv_ with
+[https://github.com/genodelabs/genode/issues/3494 - support for I/O memory regions above 4 GiB].
+I'm still wondering how this gap could stay unnoticed for such a long
+time and it may be explained by the fact that PCI MMIO above 4 GiB is
+still unusual on mobile consumer/business PCs to preserve
+compatibility to old OSes. Nevertheless, I was relieved that the 840
+did not call for an intel_fb update and was eager to boot it again.
+
+[image elitebook_3]
+
+Third boot (fingers still crossed, eyes shut tightly)
+-----------------------------------------------------
+
+This time I was not disappointed and the Leitzentrale invited me to
+play with software deployment and testing after bootup. For this I
+used the Ethernet port and also prepared the NVMe SSD for a GENODE
+partition beside the OEM Windows installation, which all worked
+without trouble. I can conclude that the EliteBook qualifies as
+suitable Sculpt platform and also fun to use. So, it may be not the
+last time I personally consider HP notebooks despite may long history
+with Lenovo Thinkpads.
