@@ -25,7 +25,7 @@ support, which means
 [https://genodians.org/chelmuth/2019-01-16-test-machine - enabling AMT Serial-Over-LAN]
 is just a matter of some configuration tweaks. Additionally, I adapted
 the Sculpt configuration to use the core LOG service,
-which is reflects all messages on the first UART - in our case (and
+which reflects all messages on the first UART - in our case (and
 thanks to [https://github.com/chelmuth/genode/tree/19.08/tool/boot - bender]) AMT SOL.
 
 !--- a/repos/gems/run/sculpt.run
@@ -127,5 +127,5 @@ used the Ethernet port and also prepared the NVMe SSD for a GENODE
 partition beside the OEM Windows installation, which all worked
 without trouble. I can conclude that the EliteBook qualifies as
 suitable Sculpt platform and also fun to use. So, it may be not the
-last time I personally consider HP notebooks despite may long history
+last time I personally consider HP notebooks despite my long history
 with Lenovo Thinkpads.
