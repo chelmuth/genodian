@@ -1,0 +1,194 @@
+
+              Let's encrypt Genodians.org: Extending Goa
+
+Since the first days we're serving Genodians.org via HTTPS and
+retrieve the site certificate from [https://letsencrypt.org/].
+Unfortunately, our current certificate-update process uses the quite
+complex [https://certbot.eff.org/ - Certbot tool], which requires
+Python 3 and around a dozen of libraries. Therefore, the process is
+run in a temporary Linux VM periodically by hand, and I'd like to
+replace this cumbersome procedure by a Genode subsystem in Genodians.
+
+[image lets_encrypt_1]
+
+During my search for a less complex alternative to Certbot I came
+across [https://github.com/ndilieto/uacme#user-content-uacme - uacme]
+which is an ACMEv2 client written in plain C code with minimal
+dependencies. After the first experiments the plan was set: Bring
+Let's Encrypt with uacme natively on Genodians.org using the friendly
+[https://genodians.org/nfeske/2019-11-25-goa - Goa tool].
+
+Developing with Goa
+-------------------
+
+The first task was becoming comfortable with Goa by following the
+[https://genodians.org/nfeske/2020-03-02-goa-update - tutorial steps]
+and adjusting the tool to my workflow. So, I created a project
+subdirectory, ran 'git init', and did my Goa homework. If I remember
+correctly it was in Unix part 2 when I realized that I can longer stay
+with the default configuration of one _var/_ directory per project. I
+wanted to consolidate the workflow by splitting the sources from the
+reproducible binaries in the depot and the actual project
+build/integration. The tool assisted my intention by its online manual
+accessible by 'goa help config' and I learned that the following
+configuration put into _.goarc_ would fulfill my desire.
+
+!set depot_dir      var/depot
+!set public_dir     var/public
+!set common_var_dir var/projects
+
+Also when developing the Goa project and some Genode component (in my
+case the Libc) in parallel, it is quite convenient to instruct Goa to
+use your development Genode source tree and depot like follows.
+
+!# for development/debugging (comment out with # if not needed)
+!set depot_dir                ../genode.git/depot
+!set versions_from_genode_dir ../genode.git
+
+All settings, experiments, and source code described here can be found
+in my Goa projects
+[https://github.com/chelmuth/goa-projects - repository].
+
+Extending Goa
+-------------
+
+After the tutorial I felt something was missing from the current
+examples: What about file-system access to store the certificates
+updated with uacme persistently? How may the tool connect to the
+certificate servers? The answer to both questions is the '<requires>'
+node of the runtime configuration file. For network access the
+developer may add the '<nic>' requires node and for file-system access
+'<file_system>'. So, I got down to business and extended Goa by
+support for both requirements.
+
+!<requires>
+!  <nitpicker/>
+!  <timer/>
+!  <file_system label="rw" writeable="yes"/>
+!</requires>
+
+For the file-system test, I extended the unix example's runtime file
+like above. The '<file_system>' node declares the requirement for a
+file-system service for the label 'rw' with write permission. The
+label attribute is mandatory but the writeable attribute defaults to
+'false' if not declared. When run via 'goa run' the Goa tool prepares
+the system configuration in a way that a _lx_fs_ file-system service
+is started and configured to serve the desired session requirement.
+lx_fs is special Genode component that has access to the Linux file
+system an provides a corresponding file-system service to other Genode
+components. The label is used as subdirectory name in the _var/fs_
+directory effectively serving _var/fs/<label>_ as root of the
+file-system service. All directories are created if they don't exist
+on run but preserved on exit, which enables likewise pre-population of the tree
+before run and access to added or changed files afterwards.
+
+The integration into the unix example is just a couple of additions to
+the _raw/unix.config_ file depicted in the following template.
+
+!<parent-provides> ... <service name="File_system"/> </parent-provides>
+!<start name="vfs">
+!  <config>
+!    <vfs> ... <dir name="rw"> <fs label="rw"/> </dir> </vfs>
+!  </config>
+!  <route>
+!    <service name="File_system" label="rw"> <parent label="rw"/> </service>
+!  </route>
+!</start>
+
+With these changes in place, the vfs server provides an _rw_
+subdirectory that is served by the lx_fs component outside of the
+runtime. Now, you may transfer files between Linux and the unix
+example via the _var/fs/rw_ directory.
+
+!<requires>
+!  <nitpicker/>
+!  <timer/>
+!  <file_system label="rw" writeable="yes"/>
+!  <nic label="tap_goa"/>
+!</requires>
+
+With the file-system support in place, I immediately went for adding
+network support. For Linux, the _linux_nic_drv_ represents an adapter
+from the _Nic_ session to a user-accessible Linux tap device. The
+snippet above instructs Goa to add the required system components and
+configuration elements to access a tap device named 'tap_goa'. Such an
+device may be created with the following commands under Linux. Note,
+the label attribute is optional and linux_nic_drv uses _tap0_ by
+default.
+
+!ip tuntap add dev tap_goa mode tap user <USER>
+!ip address flush dev tap_goa
+!ip address add 10.0.11.1/24 brd 10.0.11.255 dev tap_goa
+!ip link set dev tap_goa addr 02:00:00:ca:fd:01
+!ip link set dev tap_goa up
+
+Now, the unix example can be extended to access the network with the
+following changes.
+
+_pkg/unix/runtime_
+!<content>
+!  <rom label="stdcxx.lib.so"/>
+!  <rom label="vfs_lwip.lib.so"/>
+!  <rom label="netecho"/>
+!</content>
+
+_pkg/unix/archives_
+!nfeske/src/stdcxx
+!nfeske/src/vfs_lwip
+!chelmuth/src/netecho
+
+_raw/unix.config_
+!<parent-provides> ... <service name="Nic"/> </parent-provides>
+!<start name="vfs">
+!  <config>
+!    <vfs>
+!      <dir name="socket">
+!        <lwip ip_addr="10.0.11.55" netmask="255.255.255.0"
+!              gateway="10.0.11.1" nameserver="1.1.1.1"/>
+!      </dir>
+!      <dir name="bin"> <rom name="netecho"/> </dir>
+!    </vfs>
+!  </config>
+!  <route>
+!    <service name="File_system" label="rw"> <parent label="rw"/> </service>
+!  </route>
+!</start>
+!<start name="/bin/bash">
+!  <libc ... socket="/socket"/>
+!</start>
+
+This configures the bash component to expect the _socket file system_
+at _/socket_ and instructs the vfs server to mount the lwIP VFS plugin
+at the same location. You may have seen the _netecho_ component in the
+changes too, which is a tiny echo-to-network tool I implemented in my
+goa-project repository for simple network testing. If everything is
+setup correctly you may run the following commands in Linux and the
+Genode unix component.
+
+_Linux_
+!nc -l -p 12345
+
+_Genode_
+!netecho 10.0.11.1 12345 "hello`"
+
+Despite the declaration of gateway/nameserver, we only local network
+access currently. To permit the Genode components to access your LAN
+or the internet, you have to setup routing (or bridging if your LAN
+permits) between the tap device and your uplink device. I use the
+following commands for setting up NAT routing.
+
+!iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+!iptables -A FORWARD -i tap_goa -o eth0 -j ACCEPT
+!iptables -A FORWARD -i eth0 -o tap_goa -m state --state RELATED,ESTABLISHED -j ACCEPT
+!echo 1 > /proc/sys/net/ipv4/ip_forward
+
+The implementation of the extensions is not yet part of the Goa master
+branch but is discussed in a dedicated pull request on
+[https://github.com/nfeske/goa/pull/6 - GitHub] and should be merged
+soon.
+
+Next steps
+----------
+
+With file system and networking available I can now start the actual
+port of the uacme tool, but this is for a future article.
