@@ -21,9 +21,9 @@ Let's Encrypt with uacme natively on Genodians.org using the friendly
 Developing with Goa
 -------------------
 
-The first task was becoming comfortable with Goa by following the
+The first task was to become comfortable with Goa by following the
 [https://genodians.org/nfeske/2020-03-02-goa-update - tutorial steps]
-and adjusting the tool to my workflow. So, I created a project
+and to adjust the tool configuration to my workflow. So, I created a project
 subdirectory, ran 'git init', and did my Goa homework. If I remember
 correctly it was in Unix part 2 when I realized that I can longer stay
 with the default configuration of one _var/_ directory per project. I
@@ -53,17 +53,16 @@ Extending Goa
 -------------
 
 After the tutorial I felt something was missing from the current
-examples: What about file-system access to store the certificates
-updated with uacme persistently? How may the tool connect to the
+examples. What about file-system access to store the certificates
+updated with uacme persistently? How may uacme actually connect to the
 certificate servers? The answer to both questions is the '<requires>'
 node of the runtime configuration file. For network access the
 developer may add the '<nic>' requires node and for file-system access
-'<file_system>'. So, I got down to business and extended Goa by
-support for both requirements.
+'<file_system>'. So, I got down to business and extended Goa to
+support both requirements.
 
 !<requires>
-!  <nitpicker/>
-!  <timer/>
+!  ...
 !  <file_system label="rw" writeable="yes"/>
 !</requires>
 
@@ -74,13 +73,13 @@ label attribute is mandatory but the writeable attribute defaults to
 'false' if not declared. When run via 'goa run' the Goa tool prepares
 the system configuration in a way that a _lx_fs_ file-system service
 is started and configured to serve the desired session requirement.
-lx_fs is special Genode component that has access to the Linux file
-system an provides a corresponding file-system service to other Genode
+lx_fs is special a Genode component that has access to the Linux file
+system and provides a corresponding file-system service to other Genode
 components. The label is used as subdirectory name in the _var/fs_
 directory effectively serving _var/fs/<label>_ as root of the
 file-system service. All directories are created if they don't exist
-on run but preserved on exit, which enables likewise pre-population of the tree
-before run and access to added or changed files afterwards.
+on 'goa run' but preserved on exit, which enables pre-population of the tree
+before the run as well as access to added or changed files afterwards.
 
 The integration into the unix example is just a couple of additions to
 the _raw/unix.config_ file depicted in the following template.
@@ -91,6 +90,7 @@ the _raw/unix.config_ file depicted in the following template.
 !    <vfs> ... <dir name="rw"> <fs label="rw"/> </dir> </vfs>
 !  </config>
 !  <route>
+!    ...
 !    <service name="File_system" label="rw"> <parent label="rw"/> </service>
 !  </route>
 !</start>
@@ -101,17 +101,15 @@ runtime. Now, you may transfer files between Linux and the unix
 example via the _var/fs/rw_ directory.
 
 !<requires>
-!  <nitpicker/>
-!  <timer/>
-!  <file_system label="rw" writeable="yes"/>
+!  ...
 !  <nic label="tap_goa"/>
 !</requires>
 
-With the file-system support in place, I immediately went for adding
-network support. For Linux, the _linux_nic_drv_ represents an adapter
+After finishing the file-system support I immediately went for adding
+networking. For Linux, the _linux_nic_drv_ represents an adapter
 from the _Nic_ session to a user-accessible Linux tap device. The
 snippet above instructs Goa to add the required system components and
-configuration elements to access a tap device named 'tap_goa'. Such an
+configuration elements to access a tap device named 'tap_goa'. Such a
 device may be created with the following commands under Linux. Note,
 the label attribute is optional and linux_nic_drv uses _tap0_ by
 default.
@@ -127,12 +125,14 @@ following changes.
 
 _pkg/unix/runtime_
 !<content>
+!  ...
 !  <rom label="stdcxx.lib.so"/>
 !  <rom label="vfs_lwip.lib.so"/>
 !  <rom label="netecho"/>
 !</content>
 
 _pkg/unix/archives_
+!...
 !nfeske/src/stdcxx
 !nfeske/src/vfs_lwip
 !chelmuth/src/netecho
@@ -142,6 +142,7 @@ _raw/unix.config_
 !<start name="vfs">
 !  <config>
 !    <vfs>
+!      ...
 !      <dir name="socket">
 !        <lwip ip_addr="10.0.11.55" netmask="255.255.255.0"
 !              gateway="10.0.11.1" nameserver="1.1.1.1"/>
@@ -149,9 +150,6 @@ _raw/unix.config_
 !      <dir name="bin"> <rom name="netecho"/> </dir>
 !    </vfs>
 !  </config>
-!  <route>
-!    <service name="File_system" label="rw"> <parent label="rw"/> </service>
-!  </route>
 !</start>
 !<start name="/bin/bash">
 !  <libc ... socket="/socket"/>
@@ -163,7 +161,7 @@ at the same location. You may have seen the _netecho_ component in the
 changes too, which is a tiny echo-to-network tool I implemented in my
 goa-project repository for simple network testing. If everything is
 setup correctly you may run the following commands in Linux and the
-Genode unix component.
+Genode unix shell.
 
 _Linux_
 !nc -l -p 12345
@@ -171,7 +169,7 @@ _Linux_
 _Genode_
 !netecho 10.0.11.1 12345 "hello`"
 
-Despite the declaration of gateway/nameserver, we only local network
+Despite the declaration of gateway/nameserver, we only have local network
 access currently. To permit the Genode components to access your LAN
 or the internet, you have to setup routing (or bridging if your LAN
 permits) between the tap device and your uplink device. I use the
