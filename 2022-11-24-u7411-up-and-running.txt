@@ -55,7 +55,7 @@ machine with IP address 10.0.2.55.
 ! #!ipxe
 !
 ! dhcp || goto failed
-! chain http://10.0.2.55:2209/tftpboot/ipxe/boot.cfg || goto failed
+! chain http://10.0.2.55:2209/boot.cfg || goto failed
 ! 
 ! :failed
 ! echo Booting failed, dropping to shell
