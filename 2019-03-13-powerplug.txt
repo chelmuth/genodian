@@ -67,3 +67,5 @@ their articles to have a look into [https://pngquant.org/ - pngquant],
 a tool which does an excellent job reducing the size of images and
 thereby limits the data usage in the Genodians.org appliance and
 decreases site-loading times.
+
+| debugging howto tooling

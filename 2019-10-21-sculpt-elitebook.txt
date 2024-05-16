@@ -129,3 +129,5 @@ without trouble. I can conclude that the EliteBook qualifies as
 suitable Sculpt platform and also fun to use. So, it may be not the
 last time I personally consider HP notebooks despite my long history
 with Lenovo Thinkpads.
+
+| amt booting debugging howto intel linux platform porting sculpt tooling uefi x86

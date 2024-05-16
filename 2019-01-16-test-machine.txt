@@ -85,3 +85,5 @@ Test machine needs more time to finish boot
 The only missing piece for convenient test-debug sessions is now the
 boot of the test scenario via network but that is a completely
 different topic and beyond the scope of my first post.
+
+| amt booting debugging howto intel linux platform tooling uefi x86

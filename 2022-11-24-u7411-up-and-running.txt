@@ -111,3 +111,4 @@ Any Genode run script can now be tested on the test machine as usual. I did
 that for the U7411, which gave me quite some insights and surprises, but
 that's for another story.
 
+| amt booting debugging howto intel linux platform sculpt tooling uefi x86

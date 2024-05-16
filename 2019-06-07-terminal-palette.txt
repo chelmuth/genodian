@@ -57,3 +57,4 @@ entry at the bottom like follows.
 The patch already entered out staging branch and will be available in
 master after the current QA cycle.
 
+| sculpt

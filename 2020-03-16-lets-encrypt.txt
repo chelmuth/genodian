@@ -190,3 +190,5 @@ Next steps
 
 With file system and networking available I can now start the actual
 port of the uacme tool, but this is for a future article.
+
+| goa networking porting

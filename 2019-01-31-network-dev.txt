@@ -199,3 +199,4 @@ In the next post of this series I'll address the development-network
 configuration including DHCP, network booting, and controlling
 multiple test machines in parallel.
 
+| networking debugging howto linux tooling
