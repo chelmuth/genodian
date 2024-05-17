@@ -1,0 +1,91 @@
+
+                On-target debugging with GDB on Sculpt OS 24.04
+
+With the recent Sculpt release, we introduced initial on-target debugging
+support to get the best from the ported GNU debugger (GDB) and our custom
+debug monitor that fuels the Sculpt runtime. This little hands-on
+introduction is completed by a live demo.
+
+Live debugging of Sculpt runtime components is a built-int feature since
+version 24.04. Just give it a trial with a [https://genode.org/download/sculpt - downloaded image]
+(or Sculpt installation if you already have one) and an internet connection
+with the following steps.
+
+Preparation
+-----------
+
+# If you're not running a window-manager desktop, enable _Networking_, select
+  _Use_ in the _ram_fs_ node, and startup the _window manager_ preset from
+  the _System_ menu in the Leitzentrale.
+# Select _download debug info_ in _+ Options_ to enable automatic download
+  of missing debug-information files from the online depot.
+# Run a graphical terminal in _Tools: terminal_ from the genodelabs index.
+# Run GDB from _Tools: gdb x86_.
+
+Now, you should be presented with a terminal windows containing initial
+output from GDB and a prompt. You may try first commands like follows.
+
+!info inferiors
+!info threads
+
+Debugging nano3d
+----------------
+
+# Run _Demos: nano3d_ with options _Debug_ and _Allow code patching_ enabled.
+# Restart _gdb x86_ node in Leitzentrale to pick up new debug inferior.
+# Load debug information into GDB via the following commands.
+
+!cd /debug/nano3d
+!file nano3d
+
+We are ready to inspect the debug target now, but first have to stop its
+execution by 'interrupt -a' (which stops all threads of the inferior). The
+component threads may be resumed later by 'continue -a &'. Please mind the
+_&amp;_ is significant to execute the inferior in background and keep the
+GDB prompt intact as we currently do not support arbitrary break-in
+interruption via CTRL-C. You may try the following commands in interrupted
+state.
+
+!info sharedlibrary
+!info inferiors
+!info threads
+!thread 2
+!backtrace
+!up
+!info locals
+!set print pretty on
+
+Using a breakpoint
+------------------
+
+Static inspection is nice but hunting bugs often requires to break into the
+debugger at certain code points. Our GDB port supports ordinary breakpoints
+you may try out and step through the nano3d rendering frame-by-frame using
+the following command sequence. Note, the last GDB command can be repeated
+by just hitting the Return key.
+
+!thread 2
+!break render
+!backtrace
+!info locals
+!info registers
+!continue &
+!continue &
+!continue &
+!...
+
+Live Demo
+---------
+
+For illustration I recorded the following screencast and commentary with a
+live debugging session of the nano3d demo tool.
+
+: <video controls width="720">
+:   <source src="https://genode.org/files/2024-05-17-on-target-debugging.mp4" type="video/mp4" />
+:   <a href="https://genode.org/files/2024-05-17-on-target-debugging.mp4">Download as mp4</a>
+: </video>
+
+
+I hope you enjoyed this little howto. See you around!
+
+| debugging demo gdb howto tutorial screencast sculpt
