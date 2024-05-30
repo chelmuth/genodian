@@ -6,7 +6,7 @@ support to get the best from the ported GNU debugger (GDB) and our custom
 debug monitor that fuels the Sculpt runtime. This little hands-on
 introduction is completed by a live demo.
 
-Live debugging of Sculpt runtime components is a built-int feature since
+Live debugging of Sculpt runtime components is a built-in feature since
 version 24.04. Just give it a trial with a [https://genode.org/download/sculpt - downloaded image]
 (or Sculpt installation if you already have one) and an internet connection
 with the following steps.
