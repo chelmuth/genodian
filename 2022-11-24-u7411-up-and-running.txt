@@ -19,7 +19,7 @@ learned later).
 
 Next, I had the idea to replace Pulsar by Grub2 with an integrated
 efinet driver as we already use Grub to boot our ISO and disk images and it
-could be quite cool to reduce the Zoo of tools required. The work let to a
+could be quite cool to reduce the Zoo of tools required. The work led to a
 series of acceptable developments in
 [https://github.com/genodelabs/genode/issues/4429 - Github issue #4429] but
 I believe that Grub efinet is a blind end for the following reasons. First,
@@ -49,7 +49,7 @@ The sources for iPXE can be cloned from the upstream Git repository.
 
 Next, edit an embedded boot script to configure the boot loader and, thus,
 bypass any network/PXE configuration of the local network. The script
-_genode.ipxe_ should contain the following commands for a development
+_src/genode.ipxe_ should contain the following commands for a development
 machine with IP address 10.0.2.55.
 
 ! #!ipxe
@@ -96,6 +96,10 @@ in _etc/build.conf_ of your Genode build directory on each test cycle.
 Additionally, instruct the run tool to generate UEFI images.
 
 ! RUN_OPT += --include image/uefi
+
+If your test machine shows a SYSLINUX boot prompt and stops on startup, you
+may have to adapt your BIOS boot settings to _UEFI only_ and _no CSM support_.
+We experienced this on Lenovo X250/X260 notebooks.
 
 Run it
 ------
